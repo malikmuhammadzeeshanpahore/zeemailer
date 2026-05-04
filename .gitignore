@@ -7,6 +7,9 @@
 node_modules/
 package-lock.json
 
+# === Portable Node.js (downloaded by Windows installer) ===
+tools/
+
 # === Uploaded Files (runtime data) ===
 uploads/
 
