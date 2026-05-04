@@ -1,82 +1,131 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
+title ZeeMailer Installer
 
 echo ===================================
-echo  Installing ZeeMailer for Windows... 
+echo   ZeeMailer Installer - Windows   
 echo ===================================
+echo.
 
-:: Check for Node.js
+set "APP_DIR=%cd%"
+set "BIN_DIR=%USERPROFILE%\.local\bin"
+set "DESKTOP=%USERPROFILE%\Desktop"
+set "NODE_MIN=18"
+
+:: ─── Step 1: Check / Install Node.js ────────────────────────────────────────
+echo [1/4] Checking Node.js...
+
 where node >nul 2>nul
 if %errorlevel% neq 0 (
-    echo Node.js could not be found.
-    echo Please install Node.js from https://nodejs.org/ and try again.
+    goto :install_node
+)
+
+:: Check version
+for /f "tokens=1 delims=." %%V in ('node -e "process.stdout.write(process.version.slice(1))" 2^>nul') do set "NODE_MAJOR=%%V"
+if defined NODE_MAJOR (
+    if !NODE_MAJOR! GEQ %NODE_MIN% (
+        echo    Node.js v!NODE_MAJOR!.x found - OK
+        goto :npm_install
+    ) else (
+        echo    Node.js v!NODE_MAJOR!.x is too old ^(min: v%NODE_MIN%^). Updating...
+        goto :install_node
+    )
+)
+
+:install_node
+echo    Node.js not found. Downloading Node.js LTS installer...
+
+:: Use PowerShell to download Node.js LTS
+set "NODE_INSTALLER=%TEMP%\node_installer.msi"
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$url = (Invoke-RestMethod 'https://nodejs.org/dist/index.json' | Where-Object { $_.lts } | Select-Object -First 1).files | ForEach-Object { $null } | Out-Null; $ver = (Invoke-RestMethod 'https://nodejs.org/dist/index.json' | Where-Object { $_.lts } | Select-Object -First 1).version; $url = \"https://nodejs.org/dist/$ver/node-$ver-x64.msi\"; Write-Host \"Downloading: $url\"; Invoke-WebRequest -Uri $url -OutFile '%NODE_INSTALLER%' -UseBasicParsing"
+
+if not exist "%NODE_INSTALLER%" (
+    echo    Download failed. Trying fallback URL...
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.14.0/node-v20.14.0-x64.msi' -OutFile '%NODE_INSTALLER%' -UseBasicParsing"
+)
+
+if not exist "%NODE_INSTALLER%" (
+    echo.
+    echo    ERROR: Could not download Node.js automatically.
+    echo    Please install manually from: https://nodejs.org/en/download/
     pause
     exit /b 1
 )
 
-echo Node.js found.
+echo    Installing Node.js silently (this may take a minute)...
+msiexec /i "%NODE_INSTALLER%" /quiet /norestart ADDLOCAL=ALL
+del "%NODE_INSTALLER%" >nul 2>nul
 
-:: Install Dependencies
-echo Installing dependencies...
-call npm install
+:: Refresh PATH for current session
+for /f "tokens=*" %%P in ('powershell -NoProfile -Command "[System.Environment]::GetEnvironmentVariable(\"PATH\",\"Machine\") + \";\" + [System.Environment]::GetEnvironmentVariable(\"PATH\",\"User\")"') do set "PATH=%%P"
 
-set APP_DIR=%cd%
+where node >nul 2>nul
+if %errorlevel% neq 0 (
+    echo.
+    echo    Node.js installation may need a restart to take effect.
+    echo    Please restart your computer and run install.bat again.
+    pause
+    exit /b 1
+)
+echo    Node.js installed successfully!
 
-:: Create a batch script wrapper
-echo Creating 'zeemailer' command...
-set BIN_DIR=%USERPROFILE%\.local\bin
+:npm_install
+echo.
+echo [2/4] Installing dependencies...
+call npm install --omit=dev
+if %errorlevel% neq 0 (
+    echo    npm install failed!
+    pause
+    exit /b 1
+)
+echo    Dependencies installed.
+
+:: ─── Step 3: Create zeemailer.bat launcher ───────────────────────────────────
+echo.
+echo [3/4] Creating 'zeemailer' command...
+
 if not exist "%BIN_DIR%" mkdir "%BIN_DIR%"
 
 (
-echo @echo off
-echo set "LINK_FILE=%%USERPROFILE%%\Desktop\ZeeMailer.lnk"
-echo if not exist "%%LINK_FILE%%" ^(
-echo     echo Restoring Desktop Shortcut...
-echo     set "VBS_SCRIPT=%%temp%%\RestoreShortcut.vbs"
-echo     echo Set oWS = WScript.CreateObject^("WScript.Shell"^) ^> "%%VBS_SCRIPT%%"
-echo     echo sLinkFile = "%%LINK_FILE%%" ^>^> "%%VBS_SCRIPT%%"
-echo     echo Set oLink = oWS.CreateShortcut^(sLinkFile^) ^>^> "%%VBS_SCRIPT%%"
-echo     echo oLink.TargetPath = "%BIN_DIR%\zeemailer.bat" ^>^> "%%VBS_SCRIPT%%"
-echo     echo oLink.WorkingDirectory = "%APP_DIR%" ^>^> "%%VBS_SCRIPT%%"
-echo     echo oLink.Description = "AI-Assisted Email Marketing Tool" ^>^> "%%VBS_SCRIPT%%"
-echo     echo oLink.IconLocation = "%APP_DIR%\assets\logo.png" ^>^> "%%VBS_SCRIPT%%"
-echo     echo oLink.Save ^>^> "%%VBS_SCRIPT%%"
-echo     cscript /nologo "%%VBS_SCRIPT%%"
-echo     del "%%VBS_SCRIPT%%"
-echo ^)
-echo cd /d "%APP_DIR%"
-echo node server.js
+    echo @echo off
+    echo :: Restore desktop shortcut if missing
+    echo if not exist "%DESKTOP%\ZeeMailer.lnk" ^(
+    echo     powershell -NoProfile -ExecutionPolicy Bypass -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%DESKTOP%\ZeeMailer.lnk');$s.TargetPath='%BIN_DIR%\zeemailer.bat';$s.WorkingDirectory='%APP_DIR%';$s.Description='AI-Assisted Email Marketing Tool';$s.IconLocation='%APP_DIR%\assets\logo.png';$s.Save()"
+    echo ^)
+    echo cd /d "%APP_DIR%"
+    echo node server.js
+    echo pause
 ) > "%BIN_DIR%\zeemailer.bat"
 
-:: Add to PATH (User level)
-echo Checking PATH...
-for /f "tokens=2*" %%A in ('reg query "HKCU\Environment" /v PATH 2^>nul') do set "USER_PATH=%%B"
+:: Add BIN_DIR to user PATH if not present
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$p=[System.Environment]::GetEnvironmentVariable('PATH','User'); if($p -notlike '*%BIN_DIR%*'){[System.Environment]::SetEnvironmentVariable('PATH',$p+';%BIN_DIR%','User'); Write-Host '   Added to PATH.'} else { Write-Host '   Already in PATH.' }"
 
-echo %USER_PATH% | findstr /i /c:"%BIN_DIR%" >nul
-if %errorlevel% neq 0 (
-    echo Adding %BIN_DIR% to User PATH...
-    setx PATH "%USER_PATH%;%BIN_DIR%"
-    echo Note: You might need to restart your terminal to use 'zeemailer' command.
+:: ─── Step 4: Create Desktop Shortcut ─────────────────────────────────────────
+echo.
+echo [4/4] Creating desktop shortcut...
+
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$s=(New-Object -ComObject WScript.Shell).CreateShortcut('%DESKTOP%\ZeeMailer.lnk');$s.TargetPath='%BIN_DIR%\zeemailer.bat';$s.WorkingDirectory='%APP_DIR%';$s.Description='AI-Assisted Email Marketing Tool';$s.IconLocation='%APP_DIR%\assets\logo.png';$s.Save()"
+
+if exist "%DESKTOP%\ZeeMailer.lnk" (
+    echo    Desktop shortcut created.
+) else (
+    echo    Warning: Could not create desktop shortcut.
 )
 
-:: Create Desktop Shortcut using PowerShell
-echo Creating Desktop Shortcut...
-set "VBS_SCRIPT=%temp%\CreateShortcut.vbs"
-echo Set oWS = WScript.CreateObject("WScript.Shell") > "%VBS_SCRIPT%"
-echo sLinkFile = "%USERPROFILE%\Desktop\ZeeMailer.lnk" >> "%VBS_SCRIPT%"
-echo Set oLink = oWS.CreateShortcut(sLinkFile) >> "%VBS_SCRIPT%"
-echo oLink.TargetPath = "%BIN_DIR%\zeemailer.bat" >> "%VBS_SCRIPT%"
-echo oLink.WorkingDirectory = "%APP_DIR%" >> "%VBS_SCRIPT%"
-echo oLink.Description = "AI-Assisted Email Marketing Tool" >> "%VBS_SCRIPT%"
-echo oLink.IconLocation = "%APP_DIR%\assets\logo.png" >> "%VBS_SCRIPT%"
-echo oLink.Save >> "%VBS_SCRIPT%"
-
-cscript /nologo "%VBS_SCRIPT%"
-del "%VBS_SCRIPT%"
-
+echo.
 echo ===================================
-echo  Installation Complete!
-echo  You can now double-click 'ZeeMailer' on your Desktop
-echo  Or run 'zeemailer' from your terminal.
+echo   Installation Complete!
+echo.
+echo   Launch options:
+echo   * Double-click 'ZeeMailer'
+echo     on your Desktop
+echo   * Or open a NEW terminal and
+echo     type: zeemailer
 echo ===================================
+echo.
 pause
