@@ -15,6 +15,7 @@ set "NODE_EXE=%NODE_LOCAL%\node.exe"
 set "NPM_CMD=%NODE_LOCAL%\npm.cmd"
 set "BIN_DIR=%USERPROFILE%\.local\bin"
 set "DESKTOP=%USERPROFILE%\Desktop"
+set "USE_SYSTEM_NODE=0"
 
 :: ─── Step 1: Check for Node.js ──────────────────────────────────────────────
 echo  [1/4] Checking for Node.js...
@@ -104,15 +105,23 @@ echo        Node.js is ready ^(portable, no restart needed^).
 echo.
 echo  [2/4] Installing dependencies...
 
-if "%USE_SYSTEM_NODE%"=="1" (
-    call npm install --omit=dev
-) else (
-    :: Use local npm — portable node includes npm in node_modules\npm\bin\npm-cli.js
-    "%NODE_EXE%" "%NODE_LOCAL%\node_modules\npm\bin\npm-cli.js" install --omit=dev
+:: CRITICAL: Add portable node to current session PATH so postinstall scripts can find 'node'
+if "%USE_SYSTEM_NODE%"=="0" (
+    set "PATH=%NODE_LOCAL%;%PATH%"
 )
 
+:: Remove old node_modules if exists to avoid EPERM permission errors
+if exist "%APP_DIR%\node_modules" (
+    echo        Cleaning old node_modules...
+    rmdir /s /q "%APP_DIR%\node_modules" >nul 2>nul
+)
+
+:: Now run npm install — node is in PATH so postinstall scripts will work
+call "%NPM_CMD%" install --omit=dev
+
 if %errorlevel% neq 0 (
-    echo  ERROR: npm install failed!
+    echo.
+    echo  ERROR: npm install failed! Please check the errors above.
     pause
     exit /b 1
 )
