@@ -1,0 +1,25 @@
+# === Private & Secret Files ===
+.env
+.env.*
+*.env
+
+# === Node.js Dependencies (built on install) ===
+node_modules/
+package-lock.json
+
+# === Uploaded Files (runtime data) ===
+uploads/
+
+# === Runtime Data ===
+data/sent.csv
+data/analytics.json
+
+# === OS & Editor Files ===
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# === Logs ===
+*.log
+npm-debug.log*

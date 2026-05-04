@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZeeMailer - AI Email Marketing</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- Setup View -->
+        <div id="setup-view" class="view hidden">
+            <div class="card glass">
+                <h1>Welcome to ZeeMailer</h1>
+                <p>Let's set up your SMTP email and Gemini AI API.</p>
+                
+                <form id="setup-form">
+                    <div class="form-group">
+                        <label>SMTP Email Address</label>
+                        <input type="email" id="setup-email" required placeholder="you@yourdomain.com">
+                    </div>
+                    <div class="form-group">
+                        <label>Email Password</label>
+                        <input type="password" id="setup-pass" required placeholder="••••••••">
+                    </div>
+                    <div class="form-group">
+                        <label>SMTP Host</label>
+                        <input type="text" id="setup-host" required placeholder="e.g., smtp.gmail.com">
+                    </div>
+                    <div class="form-group">
+                        <label>SMTP Port</label>
+                        <input type="number" id="setup-port" required placeholder="e.g., 465 or 587">
+                    </div>
+                    <div class="form-group">
+                        <label>Gemini API Key <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #ff9a44; text-decoration: none; font-size: 0.8rem; margin-left: 10px;">(Get your API Key here)</a></label>
+                        <input type="password" id="setup-gemini" required placeholder="AIzaSy...">
+                    </div>
+                    <button type="submit" class="btn primary-btn">Save Credentials</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="view hidden">
+            <header>
+                <h1>Dashboard</h1>
+                <button id="new-campaign-btn" class="btn primary-btn">+ New Campaign</button>
+            </header>
+            
+            <div class="stats-grid">
+                <div class="stat-card glass">
+                    <h3>Total Emails Sent</h3>
+                    <p id="stat-sent">0</p>
+                </div>
+                <div class="stat-card glass">
+                    <h3>Total Follow-Ups</h3>
+                    <p id="stat-followup">0</p>
+                </div>
+                <div class="stat-card glass">
+                    <h3>Niches Targeted</h3>
+                    <p id="stat-niches">-</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Campaign Wizard -->
+        <div id="wizard-view" class="view hidden">
+            <div class="card glass wizard-card">
+                <button class="back-btn" id="cancel-campaign-btn">← Back to Dashboard</button>
+                <h2 id="wizard-title">Start Campaign</h2>
+                
+                <!-- Step 1: Upload -->
+                <div id="step-1" class="wizard-step">
+                    <h3>Step 1: Upload Contacts</h3>
+                    <p>Upload a .csv or .xlsx file.</p>
+                    <input type="file" id="file-upload" accept=".csv, .xlsx, .xls">
+                    <button id="upload-btn" class="btn primary-btn">Next</button>
+                </div>
+
+                <!-- Step 2: Mapping -->
+                <div id="step-2" class="wizard-step hidden">
+                    <h3>Step 2: Map Columns</h3>
+                    <p>Select which columns represent the data.</p>
+                    <div class="form-group">
+                        <label>Email Column (Required)</label>
+                        <select id="map-email"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Name Column (Optional)</label>
+                        <select id="map-name"><option value="">None</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Phone Column (Optional)</label>
+                        <select id="map-phone"><option value="">None</option></select>
+                    </div>
+                    <button id="map-btn" class="btn primary-btn">Next</button>
+                </div>
+
+                <!-- Step 3: Details -->
+                <div id="step-3" class="wizard-step hidden">
+                    <h3>Step 3: Campaign Details</h3>
+                    <div class="form-group">
+                        <label>Campaign Type</label>
+                        <select id="camp-type">
+                            <option value="new">New Message Campaign</option>
+                            <option value="followup">Follow-up Campaign</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Your Agency Name</label>
+                        <input type="text" id="camp-agency" placeholder="e.g. Apex Marketing">
+                    </div>
+                    <div class="form-group">
+                        <label>Target Niche</label>
+                        <input type="text" id="camp-niche" placeholder="e.g. Dentists">
+                    </div>
+                    <div class="btn-row">
+                        <button id="generate-btn" class="btn primary-btn">✨ Generate with AI</button>
+                        <button id="manual-btn" class="btn outline-btn">✏️ Write Manually</button>
+                    </div>
+                </div>
+
+                <!-- Step 4: Review / Manual Template -->
+                <div id="step-4" class="wizard-step hidden">
+                    <h3 id="step4-title">Step 4: Review Template</h3>
+                    <p id="step4-desc">Edit the template below before sending.</p>
+
+                    <!-- Variables Panel -->
+                    <div class="variables-panel glass-inner">
+                        <div class="variables-header">
+                            <span>📌 Available Variables</span>
+                            <small>Click to insert into template</small>
+                        </div>
+                        <div id="variables-list" class="variables-list"></div>
+                        <div class="add-variable-row">
+                            <input type="text" id="new-var-name" placeholder="Variable name (e.g. Company)">
+                            <select id="new-var-col"></select>
+                            <button id="add-var-btn" class="btn small-btn">+ Add</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top:1rem;">
+                        <label>Subject Line</label>
+                        <input type="text" id="email-subject" placeholder="Enter Subject Line" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Body</label>
+                        <textarea id="email-template" rows="12" placeholder="Write your email here. Use [VARIABLE_NAME] placeholders that you defined above."></textarea>
+                    </div>
+                    <button id="send-btn" class="btn send-btn">🚀 Start Sending</button>
+                </div>
+
+                <!-- Step 5: Progress -->
+                <div id="step-5" class="wizard-step hidden">
+                    <h3>Sending Campaign...</h3>
+                    <p>Please wait while emails are being sent. Do not close this window.</p>
+                    <div class="loader"></div>
+                </div>
+
+                <!-- Step 6: Success -->
+                <div id="step-6" class="wizard-step hidden">
+                    <h3>Success! 🎉</h3>
+                    <p>Emails have been sent successfully. <span id="success-count"></span></p>
+                    <button id="finish-btn" class="btn primary-btn">Go to Dashboard</button>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+    
+    <footer>
+        Developed with ❤️ by <a href="mailto:malikmuhammadzeeshanpahore@gmail.com">Muhammad Zeeshan</a>
+    </footer>
+    
+    <script src="script.js"></script>
+</body>
+</html>
